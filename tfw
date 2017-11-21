@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+
+export TFW_VERSION='0.1'
+
+function __tfw-log {
+  echo "${BASH_SOURCE[0]}: $@" 1>&2
+}
+
+function __tfw-debug {
+  if [[ -n "$TFW_DEBUG" ]]; then
+    echo $@ 1>&2
+  fi
+}
+
+# Check prereqs
+for prereq in curl unzip; do
+  if ! command -v "${prereq}" &>/dev/null; then
+    __tfw-log "ERROR: missing required dependency: ${prereq}"
+    if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+      exit 2
+    else
+      # Calling exit in source mode will terminate the user's shell
+      return 2
+    fi
+  fi
+done
+
+
+function __terraform-requested-version {
+  # TODO: Allow system prefix location
+  local tf_version_file="$(dirname ${BASH_SOURCE[0]})/.terraform_version"
+
+  if declare -p TERRAFORM_VERSION &>/dev/null; then
+    export TERRAFORM_VERSION
+  elif [[ -f "${tf_version_file}" ]]; then
+    __tfw-debug "Using terraform version file at ${tf_version_file}"
+    export TERRAFORM_VERSION="$(cat ${tf_version_file})"
+  else
+    # TODO: Default to latest stable?
+    export TERRAFORM_VERSION='0.11.0'
+    __tfw-log "no terraform version found, defaulting to ${TERRAFORM_VERSION}"
+  fi
+  __tfw-log "Using terraform v${TERRAFORM_VERSION}"
+  echo "${TERRAFORM_VERSION}"
+}
+
+function __terraform-current-version {
+  terraform --version 2>&1 | grep -Po '(?<=v)[0-9]+.*$'
+}
+
+function __terraform-download {
+  if ! command -v sha256sum &>/dev/null; then
+    __tfw-log "WARNING: sha256sum not found, so downloads can't be verified"
+  fi
+  local platform="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  local cache_dir="/tmp/terraform"
+  mkdir -p "${cache_dir}"
+  local archive_name="terraform_${TERRAFORM_VERSION}_${platform}_amd64.zip"
+  local checksum="${archive_name}.sha256"
+  __tfw-debug "CHECKSUM: ${checksum}"
+  __tfw-debug "version: ${TERRAFORM_VERSION}"
+  (
+    cd "${cache_dir}"
+    if [[ -f "${checksum}" ]] && [[ -f "${archive_name}" ]]; then
+      if sha256sum -c "${checksum}" 1>&2; then
+        echo "${cache_dir}/${archive_name}"
+        return 0
+      fi
+    fi
+    __tfw-log "Terraform ${TERRAFORM_VERSION} not cached locally, downloading..."
+    curl --silent --output "${archive_name}" \
+      "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${archive_name}" 1>&2
+    curl --silent "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" \
+      | grep "${archive_name}" > "${checksum}"
+    sha256sum -c "${checksum}" 1>&2
+    echo "${cache_dir}/${archive_name}"
+  )
+}
+
+function __terraform-install {
+  local tfw_home="${HOME}/.tfw"
+  if [[ ! -f "${tfw_home}/terraform-${TERRAFORM_VERSION}" ]]; then
+    local archive="$(__terraform-download)"
+    __tfw-debug "ARCHIVE: ${archive}"
+    mkdir -p "${tfw_home}"
+    unzip "${archive}" -d "${tfw_home}" 1>&2
+    mv "${tfw_home}/terraform" "${tfw_home}/terraform-${TERRAFORM_VERSION}"
+  fi
+  echo "${tfw_home}/terraform-${TERRAFORM_VERSION}"
+}
+
+function __terraform-setup {
+  set -eo pipefail
+  export TERRAFORM_VERSION="$(__terraform-requested-version)"
+  local requested_version="${TERRAFORM_VERSION}"
+  local current_version="$(__terraform-current-version)"
+  if [[ "$requested_version" != "$current_version" ]]; then
+    __tfw-debug "Requested version ${requested_version}, found ${current_version} - installing/aliasing requested version."
+  fi
+  echo "$(__terraform-install "${requested_version}")"
+}
+
+export TERRAFORM_PATH="$(__terraform-setup)"
+__tfw-debug "TERRAFORM_PATH: ${TERRAFORM_PATH}"
+
+unalias terraform &>/dev/null || true
+alias terraform="${TERRAFORM_PATH}"
+
+# http://stackoverflow.com/a/2684300
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  # COMMAND MODE
+  exec ${TERRAFORM_PATH} "$@"
+else
+  # SOURCE MODE
+  # Alias already set, nothing more to do
+  true
+fi
