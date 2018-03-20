@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-export TFW_VERSION='0.1'
+export TFW_VERSION='0.2'
 
 function __tfw-log {
   echo "${BASH_SOURCE[0]}: $@" 1>&2
@@ -28,7 +28,7 @@ done
 
 function __terraform-requested-version {
   # TODO: Allow system prefix location
-  local tf_version_file="$(dirname ${BASH_SOURCE[0]})/.terraform_version"
+  local tf_version_file="$(dirname ${BASH_SOURCE[0]})/.terraform-version"
 
   if declare -p TERRAFORM_VERSION &>/dev/null; then
     export TERRAFORM_VERSION
@@ -46,6 +46,14 @@ function __terraform-requested-version {
 
 function __terraform-current-version {
   terraform --version 2>&1 | grep -Po '(?<=v)[0-9]+.*$'
+}
+
+function __upgrade-terraform {
+  # TODO: Work in progress
+  local latest="$(curl -L https://releases.hashicorp.com/terraform | \
+    pup 'ul > li > a json{}' | jq -r .[1].text | sed 's/^terraform_//')"
+  echo "Latest Terraform version is ${latest}"
+  echo "${latest}" > .terraform_version
 }
 
 function __terraform-download {
