@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+original="$PWD"
+(
+  function select-tfw {
+    if [[ -x 'tfw' ]]; then
+      local target="$(command realpath tfw --relative-to="$original" 2>/dev/null || echo "$PWD")"
+      echo "Found tfw at ${target}" 1>&2
+      exec bash -c "./tfw \"$@\""
+    elif [[ "$PWD" != '/' ]]; then
+      cd .. && select-tfw "$@"
+    else
+      echo "No tfw file could be found!"
+      exit 1
+    fi
+  }
+  select-tfw "$@"
+)

@@ -15,9 +15,9 @@ projects are on different versions of terraform.
 
 Terraform version is selected from the first match of:
 
-1. `TERRAFORM_VERSION` environment variable (e.g. `0.11.0`)
+1. `TERRAFORM_VERSION` environment variable (e.g. `0.11.4`)
 2. `TFW_DIR/.terraform_version`
-3. `0.11.0` (planned to default to latest stable)
+3. `0.11.4` (planned to default to latest stable)
 
 `tfw` is intended to be idempotent - it should only download and install each version once.
 
@@ -30,6 +30,10 @@ Terraform version is selected from the first match of:
 `source tfw`
 
 `# run terraform normally`
+
+#### Wrapper alias:
+
+Add `tw` to your path. It finds the nearest tfw file in an upward search, so you can easily run terraform from anywhere in your project. It works similarly to the gdub/gw and mdub/mw projects for the Gradle and Maven wrappers.
 
 ## Notes
 
@@ -48,13 +52,13 @@ Terraform version is selected from the first match of:
 ## Example
 
 ```
-$ echo '0.9.0' > .terraform_version
+$ echo '0.11.4' > .terraform_version
 $ ./tfw --version
-./tfw: Using terraform v0.9.0
-./tfw: Terraform 0.9.0 not cached locally, downloading...
-terraform_0.9.0_darwin_amd64.zip: OK
+./tfw: Using terraform v0.11.4
+./tfw: Terraform 0.11.4 not cached locally, downloading...
+terraform_0.11.4_darwin_amd64.zip: OK
 Archive:  /tmp/terraform/terraform_0.9.0_darwin_amd64.zip
   inflating: /Users/USERNAME/.tfw/terraform
-Terraform v0.9.0
+Terraform v0.11.4
 
 ```
