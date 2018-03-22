@@ -30,11 +30,12 @@ function __terraform-requested-version {
   # TODO: Allow system prefix location
   local tf_version_file="$(dirname ${BASH_SOURCE[0]})/.terraform-version"
 
-  if declare -p TERRAFORM_VERSION &>/dev/null; then
-    export TERRAFORM_VERSION
-  elif [[ -f "${tf_version_file}" ]]; then
+  if [[ -f "${tf_version_file}" ]]; then
     __tfw-debug "Using terraform version file at ${tf_version_file}"
     export TERRAFORM_VERSION="$(cat ${tf_version_file})"
+  elif declare -p TERRAFORM_VERSION &>/dev/null; then
+    __tfw-debug "Using the system default terraform version as no file was present at ${tf_version_file}
+    export TERRAFORM_VERSION
   else
     # TODO: Default to latest stable?
     export TERRAFORM_VERSION='0.11.0'
