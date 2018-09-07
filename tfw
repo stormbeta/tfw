@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-export TFW_VERSION='0.2'
+export TFW_VERSION='0.3.0'
 
 function __tfw-log {
   echo "${BASH_SOURCE[0]}: $@" 1>&2
@@ -8,7 +8,7 @@ function __tfw-log {
 
 function __tfw-debug {
   if [[ -n "$TFW_DEBUG" ]]; then
-    echo $@ 1>&2
+    echo "$@" 1>&2
   fi
 }
 
@@ -25,19 +25,26 @@ for prereq in curl unzip; do
   fi
 done
 
+# TODO: Should this be optional?
+if ! ([[ -f "${HOME}/.terraformrc" ]] && grep plugin_cache_dir "${HOME}/.terraformrc" &>/dev/null); then
+  __tfw-debug "no existing plugin cache setting detected, overriding default to point at ~/.terraform.d/plugin-cache"
+  mkdir -p "${HOME}/.terraform.d/plugin-cache"
+  echo 'plugin_cache_dir = "$HOME/.terraform.d/plugin-cache"' >> "${HOME}/.terraformrc"
+fi
+
 
 function __terraform-requested-version {
   # TODO: Allow system prefix location
-  local tf_version_file="$(dirname ${BASH_SOURCE[0]})/.terraform-version"
+  local -r tf_version_file="$(dirname "${BASH_SOURCE[0]}")/.terraform-version"
 
   if declare -p TERRAFORM_VERSION &>/dev/null; then
     export TERRAFORM_VERSION
   elif [[ -f "${tf_version_file}" ]]; then
     __tfw-debug "Using terraform version file at ${tf_version_file}"
-    export TERRAFORM_VERSION="$(cat ${tf_version_file})"
+    export TERRAFORM_VERSION="$(cat "$tf_version_file")"
   else
     # TODO: Default to latest stable?
-    export TERRAFORM_VERSION='0.11.0'
+    export TERRAFORM_VERSION='0.11.8'
     __tfw-log "no terraform version found, defaulting to ${TERRAFORM_VERSION}"
   fi
   __tfw-log "Using terraform v${TERRAFORM_VERSION}"
@@ -86,7 +93,13 @@ function __terraform-download {
 }
 
 function __terraform-install {
-  local tfw_home="${HOME}/.tfw"
+  local tfw_home="${HOME}/.terraform.d/tfw"
+
+  if [[ -d "${HOME}/.tfw" ]]; then
+    # Backwards compatibility
+    tfw_home="${HOME}/.tfw"
+  fi
+
   if [[ ! -f "${tfw_home}/terraform-${TERRAFORM_VERSION}" ]]; then
     local archive="$(__terraform-download)"
     __tfw-debug "ARCHIVE: ${archive}"
@@ -105,19 +118,19 @@ function __terraform-setup {
   if [[ "$requested_version" != "$current_version" ]]; then
     __tfw-debug "Requested version ${requested_version}, found ${current_version} - installing/aliasing requested version."
   fi
-  echo "$(__terraform-install "${requested_version}")"
+  __terraform-install "${requested_version}"
 }
 
 export TERRAFORM_PATH="$(__terraform-setup)"
 __tfw-debug "TERRAFORM_PATH: ${TERRAFORM_PATH}"
 
 unalias terraform &>/dev/null || true
-alias terraform="${TERRAFORM_PATH}"
+alias terraform="\${TERRAFORM_PATH}"
 
 # http://stackoverflow.com/a/2684300
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   # COMMAND MODE
-  exec ${TERRAFORM_PATH} "$@"
+  exec "${TERRAFORM_PATH}" "$@"
 else
   # SOURCE MODE
   # Alias already set, nothing more to do
